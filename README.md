@@ -2,7 +2,7 @@
 
 Reference LDGR adapter used to exercise open adapter lifecycle extension points.
 
-This adapter is intentionally unrestricted and does not contain commercial license or entitlement logic. It is the public reference for adapter-owned install, discovery, profile application, manifest integrity, prompt activation, templates, target profiles, and command-extension behavior.
+This adapter is intentionally unrestricted and does not contain license-gating or entitlement logic. It is the public reference for adapter-owned install, discovery, profile application, manifest integrity, prompt activation, templates, target profiles, and command-extension behavior.
 
 ## Install from GitHub
 

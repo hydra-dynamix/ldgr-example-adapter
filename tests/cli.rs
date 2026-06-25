@@ -23,11 +23,11 @@ fn fixture_dir(name: &str) -> PathBuf {
 fn run(args: &[&str]) -> Output {
     let mut command = Command::new(binary());
     command.args(args).env_remove("LDGR_HOME");
-    strip_commercial_context(&mut command);
+    strip_entitlement_context(&mut command);
     command.output().expect("run ldgr-example-adapter")
 }
 
-fn strip_commercial_context(command: &mut Command) {
+fn strip_entitlement_context(command: &mut Command) {
     for key in [
         "LDGR_LICENSE",
         "LDGR_LICENSE_FILE",
@@ -93,7 +93,7 @@ fn adapter_install_writes_discoverable_bundle() {
 }
 
 #[test]
-fn open_adapter_install_and_commands_do_not_require_commercial_context() {
+fn open_adapter_install_and_commands_do_not_require_entitlement_context() {
     let dir = fixture_dir("unrestricted");
     let install = dir.join("example");
     let output = run(&[
@@ -111,7 +111,7 @@ fn open_adapter_install_and_commands_do_not_require_commercial_context() {
     let manifest = fs::read_to_string(install.join("adapter.toml")).expect("manifest");
     let manifest_lower = manifest.to_ascii_lowercase();
     for forbidden in [
-        "commercial_public_key",
+        "license_public_key",
         "entitlement_claim",
         "entitlement_schema",
         "product_version_family",
@@ -119,7 +119,7 @@ fn open_adapter_install_and_commands_do_not_require_commercial_context() {
     ] {
         assert!(
             !manifest_lower.contains(forbidden),
-            "example manifest contains commercial enforcement marker {forbidden}"
+            "example manifest contains entitlement enforcement marker {forbidden}"
         );
     }
 }
@@ -139,7 +139,7 @@ fn profile_discover_finds_installed_example_adapter() {
     assert!(install.join("adapter.toml").is_file());
 
     let mut command = Command::new(binary());
-    strip_commercial_context(&mut command);
+    strip_entitlement_context(&mut command);
     let output = command
         .args(["profile", "discover"])
         .env("LDGR_ADAPTER_PATH", adapter_root.to_str().unwrap())

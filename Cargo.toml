@@ -4,6 +4,8 @@ version = "0.1.0"
 edition = "2021"
 license = "Apache-2.0"
 repository = "https://github.com/hydra-dynamix/ldgr-example-adapter"
+homepage = "https://github.com/hydra-dynamix/ldgr-example-adapter"
+readme = "README.md"
 description = "Reference LDGR adapter used to exercise adapter lifecycle extension points."
 
 [[bin]]

@@ -1,0 +1,30 @@
+[adapter]
+slug = "example"
+title = "LDGR Example adapter"
+core_version = "0.1"
+aliases = ["ldgr-example", "reference"]
+
+[profile]
+loop_prompt_path = "prompts/ldgr-loop-next-work.md"
+default_milestone_template = "templates/milestones.md"
+spec_artifact_path = "templates/example-spec.md"
+readiness_policy = "This reference adapter command-extension slice is complete when its manifest can be loaded, its command extension executes against the real bundled manifest, and its recorded validation evidence shows the command path did not alter core LDGR command semantics."
+
+[[tools]]
+name = "example-manifest-summary"
+argv = ["ldgr-example-adapter", "manifest-summary"]
+description = "Summarize the bundled reference adapter manifest, including advertised tools, target profiles, and probe families."
+
+[[target_profiles]]
+slug = "example-adapter-lifecycle"
+title = "Example adapter lifecycle"
+target_type = "reference-adapter"
+description = "A small open reference adapter that exercises manifest loading, tool registration, and adapter-owned command execution."
+
+[[target_profiles.probes]]
+slug = "command-extension"
+title = "Command extension"
+description = "The adapter-owned command is discoverable in adapter help and executes useful behavior without replacing core commands."
+evidence_artifact_kind = "command_observation"
+expectation_template = "ldgr-example-adapter manifest-summary reports manifest metadata and registered adapter tools."
+validation_hint = "ldgr-example-adapter --help && ldgr-example-adapter manifest-summary"

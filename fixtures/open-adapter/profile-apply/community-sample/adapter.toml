@@ -1,0 +1,30 @@
+[adapter]
+slug = "community-sample"
+title = "Community Sample Adapter"
+core_version = "0.1"
+aliases = ["sample", "community"]
+
+[profile]
+loop_prompt_path = "prompts/ldgr-loop-next-work.md"
+default_milestone_template = "templates/milestones.md"
+spec_artifact_path = "templates/sample-spec.md"
+readiness_policy = "The sample adapter is ready when it can be applied by slug through the public adapter profile workflow."
+
+[[tools]]
+name = "community-sample-check"
+argv = ["community-sample", "check"]
+description = "Run the sample adapter's public validation command."
+
+[[target_profiles]]
+slug = "community-sample-lifecycle"
+title = "Community sample lifecycle"
+target_type = "community-adapter"
+description = "A public target profile for validating adapter installation, discovery, and profile application."
+
+[[target_profiles.probes]]
+slug = "manifest-loads"
+title = "Manifest loads"
+description = "The adapter manifest parses and referenced files resolve relative to the manifest directory."
+evidence_artifact_kind = "command_observation"
+expectation_template = "profile apply loads community-sample-lifecycle."
+validation_hint = "ldgr profile apply community-sample"

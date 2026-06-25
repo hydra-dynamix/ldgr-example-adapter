@@ -1,0 +1,4 @@
+adapter.toml
+prompts/ldgr-loop-next-work.md
+templates/milestones.md
+templates/sample-spec.md

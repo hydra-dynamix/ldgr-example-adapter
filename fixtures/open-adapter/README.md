@@ -14,7 +14,7 @@ open manifest and lifecycle fields.
 - `profile-discover/` models an adapter search root containing one valid
   manifest and one malformed manifest.
 - `profile-apply/` contains a self-contained adapter bundle suitable for
-  `ldgr profile apply community-sample` after the bundle is copied into a
+  `ldgr-example-adapter profile apply community-sample` after the bundle is copied into a
   configured adapter root.
 
 The fixtures use only public manifest fields: adapter identity, profile file

@@ -270,7 +270,7 @@ fn adapter_install(args: &[OsString]) -> Result<(), String> {
             "installed LDGR adapter `example`: {}",
             manifest_path.display()
         );
-        println!("next: `ldgr profile discover` then `ldgr profile apply example`");
+        println!("next: `ldgr-example-adapter profile discover` then `ldgr-example-adapter profile apply example`");
     }
     Ok(())
 }

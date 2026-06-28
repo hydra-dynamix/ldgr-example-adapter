@@ -3,7 +3,7 @@ use std::path::Path;
 use std::path::PathBuf;
 use std::process::{Command, Output};
 
-use serde::Deserialize;
+use ldgr::adapter_manifest::{parse_adapter_manifest, AdapterManifest};
 
 fn binary() -> &'static str {
     env!("CARGO_BIN_EXE_ldgr-example-adapter")
@@ -66,6 +66,9 @@ fn manifest_summary_reports_real_bundled_manifest() {
     assert!(text.contains("adapter=example title=LDGR Example adapter"));
     assert!(text.contains("tools=1"));
     assert!(text.contains("example-manifest-summary :: ldgr-example-adapter manifest-summary"));
+    assert!(text.contains("commands=1"));
+    assert!(text.contains("example aliases=ldgr-example,reference :: ldgr-example-adapter"));
+    assert!(text.contains("usage=ldgr example <command> [options]"));
     assert!(text.contains("target_profiles=1"));
     assert!(text.contains("example-adapter-lifecycle"));
 }
@@ -206,13 +209,21 @@ fn open_adapter_fixtures_cover_public_api_scenarios() {
     let valid_manifest_path = root.join("valid-manifest/adapter.toml");
     let valid_manifest =
         fs::read_to_string(&valid_manifest_path).expect("read valid fixture manifest");
-    let valid: FixtureManifest = toml::from_str(&valid_manifest).expect("valid fixture parses");
+    let valid = parse_adapter_manifest(&valid_manifest).expect("valid fixture parses");
     assert_eq!(valid.adapter.slug, "community-sample");
     assert_eq!(
         valid.profile.loop_prompt_path,
         "prompts/ldgr-loop-next-work.md"
     );
     assert_eq!(valid.tools.len(), 1);
+    assert_eq!(valid.commands.len(), 1);
+    assert_eq!(valid.commands[0].namespace, "community-sample");
+    assert_eq!(valid.commands[0].argv, vec!["community-sample"]);
+    assert_eq!(valid.commands[0].aliases, vec!["sample", "community"]);
+    assert_eq!(
+        valid.commands[0].help.usage,
+        "ldgr community-sample <command> [options]"
+    );
     assert_eq!(valid.target_profiles.len(), 1);
     assert_eq!(valid.target_profiles[0].probes.len(), 1);
     assert_referenced_files_exist(valid_manifest_path.parent().unwrap(), &valid);
@@ -220,7 +231,7 @@ fn open_adapter_fixtures_cover_public_api_scenarios() {
     let malformed_manifest = fs::read_to_string(root.join("malformed-manifest/adapter.toml"))
         .expect("malformed fixture");
     assert!(
-        toml::from_str::<FixtureManifest>(&malformed_manifest).is_err(),
+        parse_adapter_manifest(&malformed_manifest).is_err(),
         "malformed fixture should fail TOML parsing"
     );
 
@@ -236,8 +247,8 @@ fn open_adapter_fixtures_cover_public_api_scenarios() {
     let discover_valid_path = root.join("profile-discover/adapters/community-sample/adapter.toml");
     let discover_valid =
         fs::read_to_string(&discover_valid_path).expect("read discovery fixture manifest");
-    let discover: FixtureManifest =
-        toml::from_str(&discover_valid).expect("discovery fixture valid manifest parses");
+    let discover =
+        parse_adapter_manifest(&discover_valid).expect("discovery fixture valid manifest parses");
     assert_eq!(discover.adapter.aliases, vec!["sample", "community"]);
     assert_referenced_files_exist(discover_valid_path.parent().unwrap(), &discover);
 
@@ -245,20 +256,20 @@ fn open_adapter_fixtures_cover_public_api_scenarios() {
         fs::read_to_string(root.join("profile-discover/adapters/broken/adapter.toml"))
             .expect("read broken discovery fixture");
     assert!(
-        toml::from_str::<FixtureManifest>(&discover_broken).is_err(),
+        parse_adapter_manifest(&discover_broken).is_err(),
         "broken discovery fixture should fail TOML parsing"
     );
 
     let apply_manifest_path = root.join("profile-apply/community-sample/adapter.toml");
     let apply_manifest =
         fs::read_to_string(&apply_manifest_path).expect("read profile apply fixture manifest");
-    let apply: FixtureManifest =
-        toml::from_str(&apply_manifest).expect("profile apply fixture manifest parses");
+    let apply =
+        parse_adapter_manifest(&apply_manifest).expect("profile apply fixture manifest parses");
     assert_eq!(apply.adapter.slug, "community-sample");
     assert_referenced_files_exist(apply_manifest_path.parent().unwrap(), &apply);
 }
 
-fn assert_referenced_files_exist(manifest_dir: &Path, manifest: &FixtureManifest) {
+fn assert_referenced_files_exist(manifest_dir: &Path, manifest: &AdapterManifest) {
     assert!(manifest_dir
         .join(&manifest.profile.loop_prompt_path)
         .is_file());
@@ -268,74 +279,4 @@ fn assert_referenced_files_exist(manifest_dir: &Path, manifest: &FixtureManifest
     assert!(manifest_dir
         .join(&manifest.profile.spec_artifact_path)
         .is_file());
-}
-
-#[derive(Debug, Deserialize)]
-struct FixtureManifest {
-    adapter: FixtureAdapter,
-    profile: FixtureProfile,
-    #[serde(default)]
-    tools: Vec<FixtureTool>,
-    #[serde(default)]
-    target_profiles: Vec<FixtureTargetProfile>,
-}
-
-#[derive(Debug, Deserialize)]
-struct FixtureAdapter {
-    slug: String,
-    #[allow(dead_code)]
-    title: String,
-    #[allow(dead_code)]
-    core_version: String,
-    #[serde(default)]
-    aliases: Vec<String>,
-}
-
-#[derive(Debug, Deserialize)]
-struct FixtureProfile {
-    loop_prompt_path: String,
-    default_milestone_template: String,
-    spec_artifact_path: String,
-    #[allow(dead_code)]
-    readiness_policy: String,
-}
-
-#[derive(Debug, Deserialize)]
-struct FixtureTool {
-    #[allow(dead_code)]
-    name: String,
-    #[allow(dead_code)]
-    argv: Vec<String>,
-    #[allow(dead_code)]
-    description: Option<String>,
-}
-
-#[derive(Debug, Deserialize)]
-struct FixtureTargetProfile {
-    #[allow(dead_code)]
-    slug: String,
-    #[allow(dead_code)]
-    title: String,
-    #[allow(dead_code)]
-    target_type: String,
-    #[allow(dead_code)]
-    description: String,
-    #[serde(default)]
-    probes: Vec<FixtureProbe>,
-}
-
-#[derive(Debug, Deserialize)]
-struct FixtureProbe {
-    #[allow(dead_code)]
-    slug: String,
-    #[allow(dead_code)]
-    title: String,
-    #[allow(dead_code)]
-    description: String,
-    #[allow(dead_code)]
-    evidence_artifact_kind: Option<String>,
-    #[allow(dead_code)]
-    expectation_template: Option<String>,
-    #[allow(dead_code)]
-    validation_hint: Option<String>,
 }

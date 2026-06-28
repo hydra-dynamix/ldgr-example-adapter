@@ -15,6 +15,19 @@ name = "example-manifest-summary"
 argv = ["ldgr-example-adapter", "manifest-summary"]
 description = "Summarize the bundled reference adapter manifest, including advertised tools, target profiles, and probe families."
 
+[[commands]]
+namespace = "example"
+argv = ["ldgr-example-adapter"]
+aliases = ["ldgr-example", "reference"]
+title = "LDGR Example adapter commands"
+description = "Open reference adapter commands exposed under the core LDGR command surface."
+capabilities = ["dispatch", "help"]
+
+[commands.help]
+usage = "ldgr example <command> [options]"
+summary = "Run LDGR example adapter commands."
+details = "Core dispatches arguments after the example namespace to the adapter executable."
+
 [[target_profiles]]
 slug = "example-adapter-lifecycle"
 title = "Example adapter lifecycle"

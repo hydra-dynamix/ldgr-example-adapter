@@ -23,7 +23,7 @@ cargo install --path .
 Install the bundled adapter manifest and files, then apply the profile to a project ledger:
 
 ```sh
-ldgr-example-adapter adapter install      # writes ~/.ldgr/adapters/example/
+ldgr-example-adapter adapter install      # writes .ldgr/.example/
 ldgr-example-adapter profile discover
 ldgr-example-adapter profile apply
 ```

@@ -3,9 +3,12 @@ use std::ffi::OsString;
 use std::fs;
 use std::path::{Path, PathBuf};
 
+use ldgr::adapter_manifest::{
+    parse_adapter_manifest, AdapterManifest, ManifestCommandNamespace, ManifestTool,
+};
 use ldgr::manifest_integrity::verify_manifest_digest;
 use ldgr::store::{create_prompt, get_prompt, init_store, set_prompt_status, update_prompt};
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 
 const ADAPTER_TOML: &str = include_str!("../adapter.toml");
 const LOOP_PROMPT: &str = include_str!("../prompts/ldgr-loop-next-work.md");
@@ -13,6 +16,7 @@ const MILESTONES: &str = include_str!("../templates/milestones.md");
 const EXAMPLE_SPEC: &str = include_str!("../templates/example-spec.md");
 const PROFILE_PROMPT_SLUG: &str = "example-loop";
 const PROFILE_PROMPT_ROLE: &str = "example-adapter-loop";
+const ADAPTER_INSTALL_DIR: &str = "example";
 
 fn main() {
     if let Err(error) = run() {
@@ -73,6 +77,30 @@ fn manifest_summary(args: &[OsString]) -> Result<(), String> {
         println!("tools={}", summary.tools.len());
         for tool in &summary.tools {
             println!("- {} :: {}", tool.name, tool.argv.join(" "));
+        }
+        println!("commands={}", summary.commands.len());
+        for command in &summary.commands {
+            let aliases = if command.aliases.is_empty() {
+                String::new()
+            } else {
+                format!(" aliases={}", command.aliases.join(","))
+            };
+            println!(
+                "- {}{} :: {}",
+                command.namespace,
+                aliases,
+                command.argv.join(" ")
+            );
+            println!("  title={}", command.title);
+            println!("  description={}", command.description);
+            println!("  usage={}", command.help.usage);
+            println!("  summary={}", command.help.summary);
+            if let Some(details) = &command.help.details {
+                println!("  details={details}");
+            }
+            if !command.capabilities.is_empty() {
+                println!("  capabilities={}", command.capabilities.join(","));
+            }
         }
         println!("target_profiles={}", summary.target_profiles.len());
         for profile in &summary.target_profiles {
@@ -151,7 +179,7 @@ fn profile_discover(args: &[OsString]) -> Result<(), String> {
 }
 
 fn profile_apply(args: &[OsString]) -> Result<(), String> {
-    let mut install_root = default_adapter_root().join("example");
+    let mut install_root = default_adapter_root().join(ADAPTER_INSTALL_DIR);
     let mut ldgr_db = env::var_os("LDGR_DB")
         .map(PathBuf::from)
         .unwrap_or_else(|| PathBuf::from(".ldgr/ldgr.db"));
@@ -236,13 +264,13 @@ fn adapter_install(args: &[OsString]) -> Result<(), String> {
         ));
     }
 
-    let mut install_root = default_adapter_root().join("example");
+    let mut install_root = default_adapter_root().join(ADAPTER_INSTALL_DIR);
     let mut print_path = false;
     let mut index = 1;
     while index < args.len() {
         match args[index].to_str() {
             Some("--adapter-root") => {
-                install_root = next_path(args, index, "--adapter-root")?.join("example");
+                install_root = next_path(args, index, "--adapter-root")?.join(ADAPTER_INSTALL_DIR);
                 index += 2;
             }
             Some("--install-root") => {
@@ -313,33 +341,11 @@ fn default_adapter_root() -> PathBuf {
                 .unwrap_or_else(|| PathBuf::from("."))
                 .join(".ldgr")
         })
-        .join("adapters")
 }
 
 fn parse_manifest() -> Result<AdapterManifest, String> {
-    toml::from_str(ADAPTER_TOML)
-        .map_err(|error| format!("failed to parse bundled adapter.toml: {error}"))
-}
-
-#[derive(Debug, Deserialize)]
-#[serde(deny_unknown_fields)]
-struct AdapterManifest {
-    adapter: ManifestAdapter,
-    profile: ManifestProfile,
-    #[serde(default)]
-    tools: Vec<ManifestTool>,
-    #[serde(default)]
-    target_profiles: Vec<ManifestTargetProfile>,
-}
-
-#[derive(Debug, Deserialize)]
-#[serde(deny_unknown_fields)]
-struct ManifestAdapter {
-    slug: String,
-    title: String,
-    core_version: String,
-    #[serde(default)]
-    aliases: Vec<String>,
+    parse_adapter_manifest(ADAPTER_TOML)
+        .map_err(|error| format!("failed to parse bundled adapter.toml: {error:#}"))
 }
 
 #[derive(Debug)]
@@ -374,11 +380,11 @@ fn discover_adapter_manifests() -> Result<Vec<DiscoveredAdapterManifest>, String
                     continue;
                 }
             };
-            let manifest: AdapterManifest = match toml::from_str(&manifest_text) {
+            let manifest: AdapterManifest = match parse_adapter_manifest(&manifest_text) {
                 Ok(manifest) => manifest,
                 Err(error) => {
                     eprintln!(
-                        "warning: skipped adapter manifest {}: failed to parse: {error}",
+                        "warning: skipped adapter manifest {}: failed to parse: {error:#}",
                         manifest_path.display()
                     );
                     continue;
@@ -410,52 +416,16 @@ fn adapter_search_roots() -> Vec<PathBuf> {
     if let Some(paths) = env::var_os("LDGR_ADAPTER_PATH") {
         roots.extend(env::split_paths(&paths));
     }
+    roots.push(PathBuf::from(".ldgr"));
     if let Some(home) = env::var_os("LDGR_HOME") {
-        roots.push(PathBuf::from(home).join("adapters"));
+        let home = PathBuf::from(home);
+        roots.push(home.clone());
+        roots.push(home.join("adapters"));
     }
     if let Some(home) = env::var_os("HOME") {
         roots.push(PathBuf::from(home).join(".ldgr/adapters"));
     }
     roots
-}
-
-#[derive(Debug, Deserialize)]
-#[serde(deny_unknown_fields)]
-struct ManifestProfile {
-    loop_prompt_path: String,
-    default_milestone_template: String,
-    spec_artifact_path: String,
-    readiness_policy: String,
-}
-
-#[derive(Clone, Debug, Deserialize, Serialize)]
-#[serde(deny_unknown_fields)]
-struct ManifestTool {
-    name: String,
-    argv: Vec<String>,
-    description: Option<String>,
-}
-
-#[derive(Debug, Deserialize)]
-#[serde(deny_unknown_fields)]
-struct ManifestTargetProfile {
-    slug: String,
-    title: String,
-    target_type: String,
-    description: String,
-    #[serde(default)]
-    probes: Vec<ManifestProbeFamily>,
-}
-
-#[derive(Debug, Deserialize)]
-#[serde(deny_unknown_fields)]
-struct ManifestProbeFamily {
-    slug: String,
-    title: String,
-    description: String,
-    evidence_artifact_kind: Option<String>,
-    expectation_template: Option<String>,
-    validation_hint: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -469,6 +439,7 @@ struct ManifestSummary {
     spec_artifact_path: String,
     readiness_policy: String,
     tools: Vec<ManifestTool>,
+    commands: Vec<ManifestCommandNamespace>,
     target_profiles: Vec<TargetProfileSummary>,
 }
 
@@ -503,6 +474,7 @@ impl ManifestSummary {
             spec_artifact_path: manifest.profile.spec_artifact_path.clone(),
             readiness_policy: manifest.profile.readiness_policy.clone(),
             tools: manifest.tools.clone(),
+            commands: manifest.commands.clone(),
             target_profiles: manifest
                 .target_profiles
                 .iter()
@@ -543,18 +515,18 @@ fn print_manifest_summary_help() {
 
 fn print_adapter_install_help() {
     println!(
-        "ldgr-example-adapter adapter install\n\nOptions:\n      --adapter-root <PATH>  Adapter root; installs an example/ child [default: LDGR_HOME/adapters or ~/.ldgr/adapters]\n      --install-root <PATH>  Exact install directory for the example adapter bundle\n      --print-path           Print the installed adapter.toml path\n  -h, --help                 Print help"
+        "ldgr-example-adapter adapter install\n\nOptions:\n      --adapter-root <PATH>  Adapter root; installs an example/ child [default: LDGR_HOME or ~/.ldgr]\n      --install-root <PATH>  Exact install directory for the example adapter bundle\n      --print-path           Print the installed adapter.toml path\n  -h, --help                 Print help"
     );
 }
 
 fn print_profile_discover_help() {
     println!(
-        "ldgr-example-adapter profile discover\n\nSearches LDGR_ADAPTER_PATH, LDGR_HOME/adapters, and ~/.ldgr/adapters for <slug>/adapter.toml manifests.\n\nOptions:\n  -h, --help  Print help"
+        "ldgr-example-adapter profile discover\n\nSearches LDGR_ADAPTER_PATH, .ldgr, LDGR_HOME, LDGR_HOME, and ~/.ldgr for .<slug>/adapter.toml manifests.\n\nOptions:\n  -h, --help  Print help"
     );
 }
 
 fn print_profile_apply_help() {
     println!(
-        "ldgr-example-adapter profile apply\n\nOptions:\n      --install-root <PATH>       Where to copy the bundled adapter files [default: LDGR_HOME/adapters/example or ~/.ldgr/adapters/example]\n      --ldgr-db <PATH>            LDGR database path [default: LDGR_DB or .ldgr/ldgr.db]\n      --ldgr-artifact-root <PATH> LDGR artifact root [default: LDGR_ARTIFACT_ROOT or .ldgr/artifacts]\n  -h, --help                      Print help"
+        "ldgr-example-adapter profile apply\n\nOptions:\n      --install-root <PATH>       Where to copy the bundled adapter files [default: LDGR_HOME/example or ~/.ldgr/example]\n      --ldgr-db <PATH>            LDGR database path [default: LDGR_DB or .ldgr/ldgr.db]\n      --ldgr-artifact-root <PATH> LDGR artifact root [default: LDGR_ARTIFACT_ROOT or .ldgr/artifacts]\n  -h, --help                      Print help"
     );
 }

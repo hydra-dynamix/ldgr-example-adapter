@@ -15,6 +15,19 @@ name = "community-sample-check"
 argv = ["community-sample", "check"]
 description = "Run the sample adapter's public validation command."
 
+[[commands]]
+namespace = "community-sample"
+argv = ["community-sample"]
+aliases = ["sample", "community"]
+title = "Community sample commands"
+description = "Community adapter commands exposed under the core LDGR command surface."
+capabilities = ["dispatch", "help"]
+
+[commands.help]
+usage = "ldgr community-sample <command> [options]"
+summary = "Run community sample adapter commands."
+details = "Core dispatches arguments after the community-sample namespace to the adapter executable."
+
 [[target_profiles]]
 slug = "community-sample-lifecycle"
 title = "Community sample lifecycle"

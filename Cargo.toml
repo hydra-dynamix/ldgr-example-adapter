@@ -1,6 +1,6 @@
 [package]
 name = "ldgr-example-adapter"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2021"
 license = "Apache-2.0"
 repository = "https://github.com/hydra-dynamix/ldgr-example-adapter"
@@ -13,7 +13,7 @@ name = "ldgr-example-adapter"
 path = "src/main.rs"
 
 [dependencies]
-ldgr = { package = "ldgr-core", path = "../ldgr-core" }
+ldgr = { package = "ldgr-core", version = "0.1.1", git = "https://github.com/hydra-dynamix/ldgr-core", branch = "main" }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 toml = "0.8"

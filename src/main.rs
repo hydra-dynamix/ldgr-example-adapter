@@ -3,11 +3,14 @@ use std::ffi::OsString;
 use std::fs;
 use std::path::{Path, PathBuf};
 
+use ldgr::adapter_command::{
+    default_adapter_root, parse_adapter_install_command, AdapterInstallCommand,
+};
 use ldgr::adapter_manifest::{
     parse_adapter_manifest, AdapterManifest, ManifestCommandNamespace, ManifestTool,
 };
-use ldgr::manifest_integrity::verify_manifest_digest;
-use ldgr::store::{create_prompt, get_prompt, init_store, set_prompt_status, update_prompt};
+use ldgr::adapter_profile::{apply_adapter_profile_prompt, AdapterProfileApplyOptions};
+use ldgr::adapter_registry::AdapterRegistry;
 use serde::Serialize;
 
 const ADAPTER_TOML: &str = include_str!("../adapter.toml");
@@ -212,37 +215,16 @@ fn profile_apply(args: &[OsString]) -> Result<(), String> {
     }
 
     let manifest_path = install_bundle(&install_root)?;
-    init_store(&ldgr_db, &ldgr_artifact_root)
-        .map_err(|error| format!("failed to initialize LDGR store: {error:#}"))?;
-    let connection = ldgr::store::open_store(&ldgr_db)
-        .map_err(|error| format!("failed to open LDGR store: {error:#}"))?;
-    let prompt_path = install_root.join("prompts/ldgr-loop-next-work.md");
-    let source_path = prompt_path.to_string_lossy();
-    if get_prompt(&connection, PROFILE_PROMPT_SLUG)
-        .map_err(|error| format!("failed to inspect existing prompt: {error:#}"))?
-        .is_some()
-    {
-        update_prompt(
-            &connection,
-            PROFILE_PROMPT_SLUG,
-            LOOP_PROMPT,
-            Some(source_path.as_ref()),
-            Some("Loop prompt installed by the LDGR example adapter."),
-        )
-        .map_err(|error| format!("failed to update example adapter prompt: {error:#}"))?;
-    } else {
-        create_prompt(
-            &connection,
-            PROFILE_PROMPT_SLUG,
-            PROFILE_PROMPT_ROLE,
-            LOOP_PROMPT,
-            Some(source_path.as_ref()),
-            Some("Loop prompt installed by the LDGR example adapter."),
-        )
-        .map_err(|error| format!("failed to create example adapter prompt: {error:#}"))?;
-    }
-    let prompt = set_prompt_status(&connection, PROFILE_PROMPT_SLUG, "active")
-        .map_err(|error| format!("failed to activate example adapter prompt: {error:#}"))?;
+    let application = apply_adapter_profile_prompt(AdapterProfileApplyOptions {
+        manifest_path: &manifest_path,
+        db_path: &ldgr_db,
+        artifact_root: &ldgr_artifact_root,
+        prompt_slug: PROFILE_PROMPT_SLUG,
+        prompt_role: PROFILE_PROMPT_ROLE,
+        description: Some("Loop prompt installed by the LDGR example adapter."),
+    })
+    .map_err(|error| format!("failed to apply example adapter profile: {error:#}"))?;
+    let prompt = application.prompt;
     println!(
         "installed LDGR adapter `example`: {}",
         manifest_path.display()
@@ -264,34 +246,17 @@ fn adapter_install(args: &[OsString]) -> Result<(), String> {
         ));
     }
 
-    let mut install_root = default_adapter_root().join(ADAPTER_INSTALL_DIR);
-    let mut print_path = false;
-    let mut index = 1;
-    while index < args.len() {
-        match args[index].to_str() {
-            Some("--adapter-root") => {
-                install_root = next_path(args, index, "--adapter-root")?.join(ADAPTER_INSTALL_DIR);
-                index += 2;
-            }
-            Some("--install-root") => {
-                install_root = next_path(args, index, "--install-root")?;
-                index += 2;
-            }
-            Some("--print-path") => {
-                print_path = true;
-                index += 1;
-            }
-            Some("--help") | Some("-h") => {
+    let options =
+        match parse_adapter_install_command(args[1..].iter().cloned(), ADAPTER_INSTALL_DIR)? {
+            AdapterInstallCommand::Help => {
                 print_adapter_install_help();
                 return Ok(());
             }
-            Some(flag) => return Err(format!("unknown adapter install option `{flag}`")),
-            None => return Err("adapter install arguments must be valid UTF-8".to_string()),
-        }
-    }
+            AdapterInstallCommand::Install(options) => options,
+        };
 
-    let manifest_path = install_bundle(&install_root)?;
-    if print_path {
+    let manifest_path = install_bundle(&options.install_root)?;
+    if options.print_path {
         println!("{}", manifest_path.display());
     } else {
         println!(
@@ -332,17 +297,6 @@ fn next_path(args: &[OsString], index: usize, flag: &str) -> Result<PathBuf, Str
         .ok_or_else(|| format!("{flag} requires a path"))
 }
 
-fn default_adapter_root() -> PathBuf {
-    env::var_os("LDGR_HOME")
-        .map(PathBuf::from)
-        .unwrap_or_else(|| {
-            env::var_os("HOME")
-                .map(PathBuf::from)
-                .unwrap_or_else(|| PathBuf::from("."))
-                .join(".ldgr")
-        })
-}
-
 fn parse_manifest() -> Result<AdapterManifest, String> {
     parse_adapter_manifest(ADAPTER_TOML)
         .map_err(|error| format!("failed to parse bundled adapter.toml: {error:#}"))
@@ -358,74 +312,26 @@ struct DiscoveredAdapterManifest {
 }
 
 fn discover_adapter_manifests() -> Result<Vec<DiscoveredAdapterManifest>, String> {
-    let mut discovered = Vec::new();
-    for root in adapter_search_roots() {
-        let Ok(entries) = fs::read_dir(&root) else {
-            continue;
-        };
-        for entry in entries {
-            let entry =
-                entry.map_err(|error| format!("failed to read {}: {error}", root.display()))?;
-            let manifest_path = entry.path().join("adapter.toml");
-            if !manifest_path.is_file() {
-                continue;
-            }
-            let manifest_text = match fs::read_to_string(&manifest_path) {
-                Ok(text) => text,
-                Err(error) => {
-                    eprintln!(
-                        "warning: skipped adapter manifest {}: failed to read: {error}",
-                        manifest_path.display()
-                    );
-                    continue;
-                }
-            };
-            let manifest: AdapterManifest = match parse_adapter_manifest(&manifest_text) {
-                Ok(manifest) => manifest,
-                Err(error) => {
-                    eprintln!(
-                        "warning: skipped adapter manifest {}: failed to parse: {error:#}",
-                        manifest_path.display()
-                    );
-                    continue;
-                }
-            };
-            if let Err(error) = verify_manifest_digest(&manifest_text) {
-                eprintln!(
-                    "warning: skipped adapter manifest {}: failed to verify: {error}",
-                    manifest_path.display()
-                );
-                continue;
-            }
-            discovered.push(DiscoveredAdapterManifest {
-                slug: manifest.adapter.slug,
-                title: manifest.adapter.title,
-                core_version: manifest.adapter.core_version,
-                aliases: manifest.adapter.aliases,
-                manifest_path: manifest_path.canonicalize().unwrap_or(manifest_path),
-            });
-        }
+    let registry = AdapterRegistry::discover();
+    for warning in &registry.warnings {
+        eprintln!(
+            "warning: skipped adapter manifest {}: {}",
+            warning.manifest_path.display(),
+            warning.message
+        );
     }
-    discovered.sort_by(|left, right| left.slug.cmp(&right.slug));
-    discovered.dedup_by(|left, right| left.slug == right.slug);
-    Ok(discovered)
-}
 
-fn adapter_search_roots() -> Vec<PathBuf> {
-    let mut roots = Vec::new();
-    if let Some(paths) = env::var_os("LDGR_ADAPTER_PATH") {
-        roots.extend(env::split_paths(&paths));
-    }
-    roots.push(PathBuf::from(".ldgr"));
-    if let Some(home) = env::var_os("LDGR_HOME") {
-        let home = PathBuf::from(home);
-        roots.push(home.clone());
-        roots.push(home.join("adapters"));
-    }
-    if let Some(home) = env::var_os("HOME") {
-        roots.push(PathBuf::from(home).join(".ldgr/adapters"));
-    }
-    roots
+    Ok(registry
+        .adapters
+        .into_iter()
+        .map(|adapter| DiscoveredAdapterManifest {
+            slug: adapter.slug,
+            title: adapter.title,
+            core_version: adapter.core_version,
+            aliases: adapter.aliases,
+            manifest_path: adapter.manifest_path,
+        })
+        .collect())
 }
 
 #[derive(Debug, Serialize)]

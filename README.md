@@ -2,7 +2,7 @@
 
 Reference LDGR adapter used to exercise open adapter lifecycle extension points.
 
-This adapter is intentionally unrestricted and does not contain license-gating or entitlement logic. It is the public reference for adapter-owned install, discovery, profile application, manifest integrity, prompt activation, templates, target profiles, and command-extension behavior.
+This adapter is intentionally unrestricted and does not contain license-gating or entitlement logic. It is the public reference for adapter-owned install, discovery, profile application, manifest integrity, prompt activation, templates, target profiles, and command-extension behavior using `ldgr-core`'s public adapter APIs.
 
 ## Install from GitHub
 
@@ -23,9 +23,10 @@ cargo install --path .
 Install the bundled adapter manifest and files, then apply the profile to a project ledger:
 
 ```sh
-ldgr-example-adapter adapter install      # writes .ldgr/.example/
-ldgr-example-adapter profile discover
-ldgr-example-adapter profile apply
+ldgr-example-adapter adapter install      # writes $LDGR_HOME/example or ~/.ldgr/example
+ldgr adapter show example                 # core discovery/registry surface
+ldgr example manifest-summary             # core namespace dispatch to this adapter
+ldgr-example-adapter profile apply         # applies the example loop prompt
 ```
 
 `profile apply` initializes `.ldgr/ldgr.db` if needed, installs/updates the `example-loop` prompt, and marks it active.
@@ -39,7 +40,7 @@ ldgr-example-adapter profile discover
 ldgr-example-adapter profile apply [--install-root DIR] [--ldgr-db PATH] [--ldgr-artifact-root DIR]
 ```
 
-The adapter-owned command surface is intentionally separate from core `ldgr` commands.
+After install, the adapter-owned command surface is available directly through `ldgr-example-adapter ...` and through core namespace dispatch as `ldgr example ...`. Core owns discovery/dispatch; this adapter owns the behavior behind the namespace.
 
 ## Repository layout
 
@@ -48,7 +49,7 @@ The adapter-owned command surface is intentionally separate from core `ldgr` com
 | `adapter.toml` | Bundled reference adapter manifest. |
 | `prompts/ldgr-loop-next-work.md` | Loop prompt installed as `example-loop`. |
 | `templates/` | Example artifact/readiness templates. |
-| `src/main.rs` | Installer, discovery, apply, and manifest-summary CLI. |
+| `src/main.rs` | Installer, discovery, apply, and manifest-summary CLI built on public `ldgr-core` adapter APIs. |
 | `tests/cli.rs` | End-to-end CLI smoke tests. |
 
 ## Development

@@ -13,7 +13,7 @@ name = "ldgr-example-adapter"
 path = "src/main.rs"
 
 [dependencies]
-ldgr = { package = "ldgr-core", version = "0.1.1", git = "https://github.com/hydra-dynamix/ldgr-core", branch = "main" }
+ldgr = { package = "ldgr-core", version = "0.1.1", path = "../ldgr-core" }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 toml = "0.8"
@@ -23,3 +23,5 @@ assert_cmd = "2.0"
 predicates = "3.1"
 tempfile = "3.10"
 serde_json = "1.0"
+
+[workspace]

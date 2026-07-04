@@ -21,9 +21,16 @@ fn fixture_dir(name: &str) -> PathBuf {
 }
 
 fn run(args: &[&str]) -> Output {
+    run_with_env(args, &[])
+}
+
+fn run_with_env(args: &[&str], envs: &[(&str, &Path)]) -> Output {
     let mut command = Command::new(binary());
     command.args(args).env_remove("LDGR_HOME");
     strip_entitlement_context(&mut command);
+    for (key, value) in envs {
+        command.env(key, value);
+    }
     command.output().expect("run ldgr-example-adapter")
 }
 
@@ -78,17 +85,22 @@ fn adapter_install_writes_discoverable_bundle() {
     let dir = fixture_dir("materialize");
     let adapter_root = dir.join("adapters");
     let install = adapter_root.join("example");
-    let output = run(&[
-        "adapter",
-        "install",
-        "--adapter-root",
-        adapter_root.to_str().unwrap(),
-    ]);
+    let ldgr_home = dir.join("ldgr-home");
+    let output = run_with_env(
+        &[
+            "adapter",
+            "install",
+            "--adapter-root",
+            adapter_root.to_str().unwrap(),
+        ],
+        &[("LDGR_HOME", &ldgr_home)],
+    );
     assert!(output.status.success());
     assert!(install.join("adapter.toml").is_file());
     assert!(install.join("prompts/ldgr-loop-next-work.md").is_file());
     assert!(install.join("templates/milestones.md").is_file());
     assert!(install.join("templates/example-spec.md").is_file());
+    assert!(ldgr_home.join("prompts/ldgr-loop-next-work.md").is_file());
     let manifest = fs::read_to_string(install.join("adapter.toml")).expect("manifest");
     assert!(manifest.contains("slug = \"example\""));
     assert!(manifest.contains("name = \"example-manifest-summary\""));
@@ -99,12 +111,16 @@ fn adapter_install_writes_discoverable_bundle() {
 fn open_adapter_install_and_commands_do_not_require_entitlement_context() {
     let dir = fixture_dir("unrestricted");
     let install = dir.join("example");
-    let output = run(&[
-        "adapter",
-        "install",
-        "--install-root",
-        install.to_str().unwrap(),
-    ]);
+    let ldgr_home = dir.join("ldgr-home");
+    let output = run_with_env(
+        &[
+            "adapter",
+            "install",
+            "--install-root",
+            install.to_str().unwrap(),
+        ],
+        &[("LDGR_HOME", &ldgr_home)],
+    );
     assert!(output.status.success());
 
     let summary = run(&["manifest-summary"]);
@@ -132,12 +148,16 @@ fn profile_discover_finds_installed_example_adapter() {
     let dir = fixture_dir("discover");
     let adapter_root = dir.join("adapters");
     let install = adapter_root.join("example");
-    let install_output = run(&[
-        "adapter",
-        "install",
-        "--adapter-root",
-        adapter_root.to_str().unwrap(),
-    ]);
+    let ldgr_home = dir.join("ldgr-home");
+    let install_output = run_with_env(
+        &[
+            "adapter",
+            "install",
+            "--adapter-root",
+            adapter_root.to_str().unwrap(),
+        ],
+        &[("LDGR_HOME", &ldgr_home)],
+    );
     assert!(install_output.status.success());
     assert!(install.join("adapter.toml").is_file());
 

@@ -20,6 +20,7 @@ const EXAMPLE_SPEC: &str = include_str!("../templates/example-spec.md");
 const PROFILE_PROMPT_SLUG: &str = "example-loop";
 const PROFILE_PROMPT_ROLE: &str = "example-adapter-loop";
 const ADAPTER_INSTALL_DIR: &str = "example";
+const CENTRAL_PROMPTS_DIR: &str = "prompts";
 
 fn main() {
     if let Err(error) = run() {
@@ -256,6 +257,7 @@ fn adapter_install(args: &[OsString]) -> Result<(), String> {
         };
 
     let manifest_path = install_bundle(&options.install_root)?;
+    install_adapter_prompt_files(&options.install_root)?;
     if options.print_path {
         println!("{}", manifest_path.display());
     } else {
@@ -280,6 +282,40 @@ fn install_bundle(install_root: &Path) -> Result<PathBuf, String> {
         EXAMPLE_SPEC,
     )?;
     Ok(install_root.join("adapter.toml"))
+}
+
+fn install_adapter_prompt_files(install_root: &Path) -> Result<(), String> {
+    let prompts = install_root.join(CENTRAL_PROMPTS_DIR);
+    if !prompts.is_dir() {
+        return Ok(());
+    }
+    let target = default_adapter_root().join(CENTRAL_PROMPTS_DIR);
+    copy_directory_children(&prompts, &target)?;
+    println!("installed example prompts to {}", target.display());
+    Ok(())
+}
+
+fn copy_directory_children(from: &Path, to: &Path) -> Result<(), String> {
+    fs::create_dir_all(to)
+        .map_err(|error| format!("failed to create {}: {error}", to.display()))?;
+    for entry in
+        fs::read_dir(from).map_err(|error| format!("failed to read {}: {error}", from.display()))?
+    {
+        let entry =
+            entry.map_err(|error| format!("failed to read {} entry: {error}", from.display()))?;
+        let source = entry.path();
+        let dest = to.join(entry.file_name());
+        if source.is_dir() {
+            copy_directory_children(&source, &dest)?;
+        } else if source.is_file() {
+            write_parented(
+                &dest,
+                &fs::read_to_string(&source)
+                    .map_err(|error| format!("failed to read {}: {error}", source.display()))?,
+            )?;
+        }
+    }
+    Ok(())
 }
 
 fn write_parented(path: &Path, contents: &str) -> Result<(), String> {

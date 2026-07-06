@@ -27,6 +27,16 @@ fn run(args: &[&str]) -> Output {
     command.output().expect("run ldgr-example-adapter")
 }
 
+fn run_with_env(args: &[&str], envs: &[(&str, &Path)]) -> Output {
+    let mut command = Command::new(binary());
+    command.args(args).env_remove("LDGR_HOME");
+    for (key, value) in envs {
+        command.env(key, value);
+    }
+    strip_entitlement_context(&mut command);
+    command.output().expect("run ldgr-example-adapter")
+}
+
 fn strip_entitlement_context(command: &mut Command) {
     for key in [
         "LDGR_LICENSE",
@@ -78,15 +88,19 @@ fn adapter_install_writes_discoverable_bundle() {
     let dir = fixture_dir("materialize");
     let adapter_root = dir.join("adapters");
     let install = adapter_root.join("example");
-    let output = run(&[
-        "adapter",
-        "install",
-        "--adapter-root",
-        adapter_root.to_str().unwrap(),
-    ]);
+    let output = run_with_env(
+        &[
+            "adapter",
+            "install",
+            "--adapter-root",
+            adapter_root.to_str().unwrap(),
+        ],
+        &[("HOME", &dir)],
+    );
     assert!(output.status.success());
     assert!(install.join("adapter.toml").is_file());
     assert!(install.join("prompts/ldgr-loop-next-work.md").is_file());
+    assert!(dir.join(".ldgr/prompts/ldgr-loop-next-work.md").is_file());
     assert!(install.join("templates/milestones.md").is_file());
     assert!(install.join("templates/example-spec.md").is_file());
     let manifest = fs::read_to_string(install.join("adapter.toml")).expect("manifest");
@@ -99,12 +113,15 @@ fn adapter_install_writes_discoverable_bundle() {
 fn open_adapter_install_and_commands_do_not_require_entitlement_context() {
     let dir = fixture_dir("unrestricted");
     let install = dir.join("example");
-    let output = run(&[
-        "adapter",
-        "install",
-        "--install-root",
-        install.to_str().unwrap(),
-    ]);
+    let output = run_with_env(
+        &[
+            "adapter",
+            "install",
+            "--install-root",
+            install.to_str().unwrap(),
+        ],
+        &[("HOME", &dir)],
+    );
     assert!(output.status.success());
 
     let summary = run(&["manifest-summary"]);
@@ -132,12 +149,15 @@ fn profile_discover_finds_installed_example_adapter() {
     let dir = fixture_dir("discover");
     let adapter_root = dir.join("adapters");
     let install = adapter_root.join("example");
-    let install_output = run(&[
-        "adapter",
-        "install",
-        "--adapter-root",
-        adapter_root.to_str().unwrap(),
-    ]);
+    let install_output = run_with_env(
+        &[
+            "adapter",
+            "install",
+            "--adapter-root",
+            adapter_root.to_str().unwrap(),
+        ],
+        &[("HOME", &dir)],
+    );
     assert!(install_output.status.success());
     assert!(install.join("adapter.toml").is_file());
 
@@ -146,6 +166,7 @@ fn profile_discover_finds_installed_example_adapter() {
     let output = command
         .args(["profile", "discover"])
         .env("LDGR_ADAPTER_PATH", adapter_root.to_str().unwrap())
+        .env("HOME", &dir)
         .env_remove("LDGR_HOME")
         .output()
         .expect("run profile discover");
@@ -157,6 +178,36 @@ fn profile_discover_finds_installed_example_adapter() {
         text.contains("apply=\"ldgr-example-adapter profile apply\""),
         "{text}"
     );
+}
+
+#[test]
+fn adapter_install_routes_prompts_through_harness_config() {
+    let dir = fixture_dir("harness-config");
+    let adapter_root = dir.join("adapters");
+    let codex_prompts = dir.join(".codex/prompts");
+    fs::create_dir_all(dir.join(".ldgr")).expect("create config dir");
+    fs::write(
+        dir.join(".ldgr/config.json"),
+        format!(
+            "{{\"harness\":\"codex\",\"prompt_paths\":[\"{}\"]}}",
+            codex_prompts.display()
+        ),
+    )
+    .expect("write config");
+
+    let output = run_with_env(
+        &[
+            "adapter",
+            "install",
+            "--adapter-root",
+            adapter_root.to_str().unwrap(),
+        ],
+        &[("HOME", &dir)],
+    );
+
+    assert!(output.status.success());
+    assert!(codex_prompts.join("ldgr-loop-next-work.md").is_file());
+    assert!(!dir.join(".ldgr/prompts/ldgr-loop-next-work.md").exists());
 }
 
 #[test]

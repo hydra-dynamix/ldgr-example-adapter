@@ -473,8 +473,8 @@ checksum = "8f42a60cbdf9a97f5d2305f08a87dc4e09308d1276d28c869c684d7777685682"
 
 [[package]]
 name = "ldgr-core"
-version = "0.1.1"
-source = "git+https://github.com/hydra-dynamix/ldgr-core?branch=main#3a084ade3d30a7c97099046ff055829087ca6534"
+version = "0.1.4"
+source = "git+https://github.com/hydra-dynamix/ldgr-core?branch=main#7d9ad829ce837def944edc23d38913d1de961316"
 dependencies = [
  "anyhow",
  "base64",
@@ -494,7 +494,7 @@ dependencies = [
 
 [[package]]
 name = "ldgr-example-adapter"
-version = "0.1.1"
+version = "0.1.4"
 dependencies = [
  "assert_cmd",
  "ldgr-core",

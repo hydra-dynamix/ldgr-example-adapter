@@ -23,12 +23,14 @@ cargo install --path .
 Install the bundled adapter manifest and files, then apply the profile to a project ledger:
 
 ```sh
-ldgr-example-adapter adapter install      # writes .ldgr/.example/
+ldgr-example-adapter adapter install      # writes ~/.ldgr/adapters/example/
 ldgr-example-adapter profile discover
 ldgr-example-adapter profile apply
 ```
 
-`profile apply` initializes `.ldgr/ldgr.db` if needed, installs/updates the `example-loop` prompt, and marks it active.
+`adapter install` also copies bundled prompts into configured harness prompt paths from `~/.ldgr/config.json`. Without config, prompts default to `~/.ldgr/prompts`.
+
+`profile apply` initializes `.ldgr/ldgr.db` if needed, installs/updates the `example-loop` prompt from the adapter bundle, and marks it active.
 
 ## Commands
 

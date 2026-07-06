@@ -17,6 +17,7 @@ const EXAMPLE_SPEC: &str = include_str!("../templates/example-spec.md");
 const PROFILE_PROMPT_SLUG: &str = "example-loop";
 const PROFILE_PROMPT_ROLE: &str = "example-adapter-loop";
 const ADAPTER_INSTALL_DIR: &str = "example";
+const CENTRAL_PROMPTS_DIR: &str = "prompts";
 
 fn main() {
     if let Err(error) = run() {
@@ -291,6 +292,7 @@ fn adapter_install(args: &[OsString]) -> Result<(), String> {
     }
 
     let manifest_path = install_bundle(&install_root)?;
+    install_adapter_prompt_files(&install_root)?;
     if print_path {
         println!("{}", manifest_path.display());
     } else {
@@ -317,6 +319,105 @@ fn install_bundle(install_root: &Path) -> Result<PathBuf, String> {
     Ok(install_root.join("adapter.toml"))
 }
 
+fn install_adapter_prompt_files(install_root: &Path) -> Result<(), String> {
+    let home = env::var_os("HOME").map(PathBuf::from);
+    let config = read_ldgr_harness_config(home.as_deref())?;
+    for destination in configured_prompt_dirs(home.as_deref(), config.as_ref()) {
+        copy_directory_children(&install_root.join(CENTRAL_PROMPTS_DIR), &destination)?;
+    }
+    Ok(())
+}
+
+fn read_ldgr_harness_config(home: Option<&Path>) -> Result<Option<serde_json::Value>, String> {
+    let Some(home) = home else {
+        return Ok(None);
+    };
+    let path = home.join(".ldgr/config.json");
+    if !path.is_file() {
+        return Ok(None);
+    }
+    let text = fs::read_to_string(&path)
+        .map_err(|error| format!("failed to read {}: {error}", path.display()))?;
+    serde_json::from_str(&text)
+        .map(Some)
+        .map_err(|error| format!("failed to parse {}: {error}", path.display()))
+}
+
+fn configured_prompt_dirs(home: Option<&Path>, config: Option<&serde_json::Value>) -> Vec<PathBuf> {
+    let mut paths = Vec::new();
+    if let Some(config) = config {
+        if let Some(configured) = config
+            .get("prompt_paths")
+            .and_then(|value| value.as_array())
+        {
+            paths.extend(
+                configured
+                    .iter()
+                    .filter_map(|value| value.as_str())
+                    .map(|path| expand_home_path(path, home)),
+            );
+        }
+    }
+    if paths.is_empty() {
+        if let Some(home) = home {
+            paths.push(home.join(".ldgr/prompts"));
+        }
+    }
+    dedup_paths(paths)
+}
+
+fn expand_home_path(path: &str, home: Option<&Path>) -> PathBuf {
+    if path == "~" {
+        if let Some(home) = home {
+            return home.to_path_buf();
+        }
+    }
+    if let Some(rest) = path.strip_prefix("~/") {
+        if let Some(home) = home {
+            return home.join(rest);
+        }
+    }
+    PathBuf::from(path)
+}
+
+fn dedup_paths(paths: Vec<PathBuf>) -> Vec<PathBuf> {
+    let mut deduped = Vec::new();
+    for path in paths {
+        if !deduped.iter().any(|existing| existing == &path) {
+            deduped.push(path);
+        }
+    }
+    deduped
+}
+
+fn copy_directory_children(source: &Path, destination: &Path) -> Result<(), String> {
+    if !source.is_dir() {
+        return Ok(());
+    }
+    fs::create_dir_all(destination)
+        .map_err(|error| format!("failed to create {}: {error}", destination.display()))?;
+    let entries = fs::read_dir(source)
+        .map_err(|error| format!("failed to read {}: {error}", source.display()))?;
+    for entry in entries {
+        let entry =
+            entry.map_err(|error| format!("failed to read {}: {error}", source.display()))?;
+        let path = entry.path();
+        let target = destination.join(entry.file_name());
+        if path.is_dir() {
+            copy_directory_children(&path, &target)?;
+        } else {
+            fs::copy(&path, &target).map_err(|error| {
+                format!(
+                    "failed to copy {} to {}: {error}",
+                    path.display(),
+                    target.display()
+                )
+            })?;
+        }
+    }
+    Ok(())
+}
+
 fn write_parented(path: &Path, contents: &str) -> Result<(), String> {
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent)
@@ -341,6 +442,7 @@ fn default_adapter_root() -> PathBuf {
                 .unwrap_or_else(|| PathBuf::from("."))
                 .join(".ldgr")
         })
+        .join("adapters")
 }
 
 fn parse_manifest() -> Result<AdapterManifest, String> {
@@ -416,10 +518,9 @@ fn adapter_search_roots() -> Vec<PathBuf> {
     if let Some(paths) = env::var_os("LDGR_ADAPTER_PATH") {
         roots.extend(env::split_paths(&paths));
     }
-    roots.push(PathBuf::from(".ldgr"));
+    roots.push(PathBuf::from(".ldgr/adapters"));
     if let Some(home) = env::var_os("LDGR_HOME") {
         let home = PathBuf::from(home);
-        roots.push(home.clone());
         roots.push(home.join("adapters"));
     }
     if let Some(home) = env::var_os("HOME") {
@@ -515,18 +616,18 @@ fn print_manifest_summary_help() {
 
 fn print_adapter_install_help() {
     println!(
-        "ldgr-example-adapter adapter install\n\nOptions:\n      --adapter-root <PATH>  Adapter root; installs an example/ child [default: LDGR_HOME or ~/.ldgr]\n      --install-root <PATH>  Exact install directory for the example adapter bundle\n      --print-path           Print the installed adapter.toml path\n  -h, --help                 Print help"
+        "ldgr-example-adapter adapter install\n\nOptions:\n      --adapter-root <PATH>  Adapter root; installs an example/ child [default: LDGR_HOME/adapters or ~/.ldgr/adapters]\n      --install-root <PATH>  Exact install directory for the example adapter bundle\n      --print-path           Print the installed adapter.toml path\n  -h, --help                 Print help"
     );
 }
 
 fn print_profile_discover_help() {
     println!(
-        "ldgr-example-adapter profile discover\n\nSearches LDGR_ADAPTER_PATH, .ldgr, LDGR_HOME, LDGR_HOME, and ~/.ldgr for .<slug>/adapter.toml manifests.\n\nOptions:\n  -h, --help  Print help"
+        "ldgr-example-adapter profile discover\n\nSearches LDGR_ADAPTER_PATH, project .ldgr/adapters, LDGR_HOME/adapters, and ~/.ldgr/adapters for <slug>/adapter.toml manifests.\n\nOptions:\n  -h, --help  Print help"
     );
 }
 
 fn print_profile_apply_help() {
     println!(
-        "ldgr-example-adapter profile apply\n\nOptions:\n      --install-root <PATH>       Where to copy the bundled adapter files [default: LDGR_HOME/example or ~/.ldgr/example]\n      --ldgr-db <PATH>            LDGR database path [default: LDGR_DB or .ldgr/ldgr.db]\n      --ldgr-artifact-root <PATH> LDGR artifact root [default: LDGR_ARTIFACT_ROOT or .ldgr/artifacts]\n  -h, --help                      Print help"
+        "ldgr-example-adapter profile apply\n\nOptions:\n      --install-root <PATH>       Where to copy the bundled adapter files [default: LDGR_HOME/adapters/example or ~/.ldgr/adapters/example]\n      --ldgr-db <PATH>            LDGR database path [default: LDGR_DB or .ldgr/ldgr.db]\n      --ldgr-artifact-root <PATH> LDGR artifact root [default: LDGR_ARTIFACT_ROOT or .ldgr/artifacts]\n  -h, --help                      Print help"
     );
 }

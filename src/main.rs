@@ -445,7 +445,7 @@ impl ManifestSummary {
 
 fn print_help() {
     println!(
-        "ldgr-example-adapter\n\nUsage:\n  ldgr-example-adapter manifest-summary [--json]\n  ldgr-example-adapter adapter install [OPTIONS]\n  ldgr-example-adapter profile discover [OPTIONS]\n  ldgr-example-adapter profile apply [OPTIONS]\n\nCommands:\n  manifest-summary  Summarize the bundled reference adapter manifest and command extension.\n  adapter install   Install the bundled LDGR example adapter.\n  profile discover  List installed LDGR adapter manifests.\n  profile apply     Install the bundle and activate its loop prompt through ldgr-core.\n\nThe adapter-owned command surface is intentionally separate from core `ldgr` commands."
+        "ldgr-example-adapter\n\nUsage:\n  ldgr-example-adapter manifest-summary [--json]\n  ldgr-example-adapter adapter install [OPTIONS]\n  ldgr-example-adapter profile discover [OPTIONS]\n  ldgr-example-adapter profile apply [OPTIONS]\n\nCommands:\n  manifest-summary  Summarize the bundled reference adapter manifest and command extension.\n  adapter install   Install the bundled LDGR example adapter.\n  profile discover  List installed LDGR adapter manifests.\n  profile apply     Install the bundle and ensure its global loop prompt exists.\n\nThe adapter-owned command surface is intentionally separate from core `ldgr` commands."
     );
 }
 
@@ -463,12 +463,12 @@ fn print_adapter_install_help() {
 
 fn print_profile_discover_help() {
     println!(
-        "ldgr-example-adapter profile discover\n\nSearches LDGR_ADAPTER_PATH, .ldgr, LDGR_HOME, LDGR_HOME, and ~/.ldgr for .<slug>/adapter.toml manifests.\n\nOptions:\n  -h, --help  Print help"
+        "ldgr-example-adapter profile discover\n\nSearches LDGR_ADAPTER_PATH, project .ldgr, LDGR_HOME/adapters, LDGR_HOME, ~/.ldgr/adapters, and ~/.ldgr for <slug>/adapter.toml manifests.\n\nOptions:\n  -h, --help  Print help"
     );
 }
 
 fn print_profile_apply_help() {
     println!(
-        "ldgr-example-adapter profile apply\n\nOptions:\n      --install-root <PATH>       Where to copy the bundled adapter files [default: LDGR_HOME/example or ~/.ldgr/example]\n      --ldgr-db <PATH>            LDGR database path [default: LDGR_DB or .ldgr/ldgr.db]\n      --ldgr-artifact-root <PATH> LDGR artifact root [default: LDGR_ARTIFACT_ROOT or .ldgr/artifacts]\n  -h, --help                      Print help"
+        "ldgr-example-adapter profile apply\n\nInstalls the example adapter bundle and refreshes the global example loop prompt.\n\nOptions:\n      --install-root <PATH>       Where to copy the bundled adapter files [default: LDGR_HOME/example or ~/.ldgr/example]\n      --ldgr-db <PATH>            LDGR database path [default: LDGR_DB or .ldgr/ldgr.db]\n      --ldgr-artifact-root <PATH> LDGR artifact root [default: LDGR_ARTIFACT_ROOT or .ldgr/artifacts]\n  -h, --help                      Print help"
     );
 }

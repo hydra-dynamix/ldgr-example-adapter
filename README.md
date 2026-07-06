@@ -2,7 +2,7 @@
 
 Reference LDGR adapter used to exercise open adapter lifecycle extension points.
 
-This adapter is intentionally unrestricted and does not contain license-gating or entitlement logic. It is the public reference for adapter-owned install, discovery, profile application, manifest integrity, prompt activation, templates, target profiles, and command-extension behavior using `ldgr-core`'s public adapter APIs.
+This adapter is intentionally unrestricted and does not contain license-gating or entitlement logic. It is the public reference for adapter-owned install, discovery, profile application, manifest integrity, global prompt installation, templates, target profiles, and command-extension behavior using `ldgr-core`'s public adapter APIs.
 
 ## Install from GitHub
 
@@ -26,10 +26,10 @@ Install the bundled adapter manifest and files, then apply the profile to a proj
 ldgr-example-adapter adapter install      # writes $LDGR_HOME/example or ~/.ldgr/example
 ldgr adapter show example                 # core discovery/registry surface
 ldgr example manifest-summary             # core namespace dispatch to this adapter
-ldgr-example-adapter profile apply         # applies the example loop prompt
+ldgr-example-adapter profile apply         # installs/refreshes the example loop prompt
 ```
 
-`profile apply` initializes `.ldgr/ldgr.db` if needed, installs/updates the `example-loop` prompt, and marks it active.
+`profile apply` initializes `.ldgr/ldgr.db` if needed and installs/updates the global `example-loop` prompt.
 
 ## Commands
 

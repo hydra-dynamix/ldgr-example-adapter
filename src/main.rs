@@ -14,6 +14,10 @@ const ADAPTER_TOML: &str = include_str!("../adapter.toml");
 const LOOP_PROMPT: &str = include_str!("../prompts/ldgr-loop-next-work.md");
 const MILESTONES: &str = include_str!("../templates/milestones.md");
 const EXAMPLE_SPEC: &str = include_str!("../templates/example-spec.md");
+const RESOURCE_MANIFEST: &str = include_str!("../adapter-resources.json");
+const EXAMPLE_SKILL: &str = include_str!("../skills/ldgr-example/SKILL.md");
+const EXAMPLE_EXTENSION: &str = include_str!("../extensions/ldgr-example.ts");
+const EXAMPLE_COMMAND: &str = include_str!("../commands/ldgr-example.md");
 const PROFILE_PROMPT_SLUG: &str = "example-loop";
 const PROFILE_PROMPT_ROLE: &str = "example-adapter-loop";
 const ADAPTER_INSTALL_DIR: &str = "example";
@@ -315,6 +319,22 @@ fn install_bundle(install_root: &Path) -> Result<PathBuf, String> {
     write_parented(
         &install_root.join("templates/example-spec.md"),
         EXAMPLE_SPEC,
+    )?;
+    write_parented(
+        &install_root.join("adapter-resources.json"),
+        RESOURCE_MANIFEST,
+    )?;
+    write_parented(
+        &install_root.join("skills/ldgr-example/SKILL.md"),
+        EXAMPLE_SKILL,
+    )?;
+    write_parented(
+        &install_root.join("extensions/ldgr-example.ts"),
+        EXAMPLE_EXTENSION,
+    )?;
+    write_parented(
+        &install_root.join("commands/ldgr-example.md"),
+        EXAMPLE_COMMAND,
     )?;
     Ok(install_root.join("adapter.toml"))
 }

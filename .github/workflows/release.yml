@@ -136,7 +136,7 @@ jobs:
                 "platform":"${platform}",
                 "asset_url":"https://github.com/${RELEASE_REPO}/releases/download/example-v${version}/${RELEASE_NAME}-${version}-${platform}.tar.gz",
                 "archive_root":"${RELEASE_NAME}-${version}",
-                "binary":"${BINARY}",
+                "binary":"${binary_file}",
                 "sha256":"${digest}",
                 "signature_url":"https://github.com/${RELEASE_REPO}/releases/download/example-v${version}/${RELEASE_NAME}-${version}-${platform}.tar.gz.sig",
                 "signing_key_id":"${LDGR_RELEASE_SIGNING_KEY_ID}",

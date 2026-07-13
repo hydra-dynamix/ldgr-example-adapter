@@ -103,6 +103,10 @@ fn adapter_install_writes_discoverable_bundle() {
     assert!(dir.join(".ldgr/prompts/ldgr-loop-next-work.md").is_file());
     assert!(install.join("templates/milestones.md").is_file());
     assert!(install.join("templates/example-spec.md").is_file());
+    assert!(install.join("adapter-resources.json").is_file());
+    assert!(install.join("skills/ldgr-example/SKILL.md").is_file());
+    assert!(install.join("extensions/ldgr-example.ts").is_file());
+    assert!(install.join("commands/ldgr-example.md").is_file());
     let manifest = fs::read_to_string(install.join("adapter.toml")).expect("manifest");
     assert!(manifest.contains("slug = \"example\""));
     assert!(manifest.contains("name = \"example-manifest-summary\""));

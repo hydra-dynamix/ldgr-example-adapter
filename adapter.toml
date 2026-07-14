@@ -1,7 +1,7 @@
 [adapter]
 slug = "example"
 title = "LDGR Example adapter"
-core_version = "0.1"
+core_version = "generated"
 aliases = ["ldgr-example", "reference"]
 
 [profile]

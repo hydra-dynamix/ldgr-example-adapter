@@ -11,6 +11,7 @@ use ldgr::store::{create_prompt, get_prompt, init_store, set_prompt_status, upda
 use serde::Serialize;
 
 const ADAPTER_TOML: &str = include_str!("../adapter.toml");
+const ADAPTER_DATABASE_CONTRACT: &str = include_str!("../adapter-database-contract.json");
 const LOOP_PROMPT: &str = include_str!("../prompts/ldgr-loop-next-work.md");
 const MILESTONES: &str = include_str!("../templates/milestones.md");
 const EXAMPLE_SPEC: &str = include_str!("../templates/example-spec.md");
@@ -311,6 +312,10 @@ fn adapter_install(args: &[OsString]) -> Result<(), String> {
 
 fn install_bundle(install_root: &Path) -> Result<PathBuf, String> {
     write_parented(&install_root.join("adapter.toml"), ADAPTER_TOML)?;
+    write_parented(
+        &install_root.join("adapter-database-contract.json"),
+        ADAPTER_DATABASE_CONTRACT,
+    )?;
     write_parented(
         &install_root.join("prompts/ldgr-loop-next-work.md"),
         LOOP_PROMPT,

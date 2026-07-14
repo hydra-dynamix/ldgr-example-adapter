@@ -243,6 +243,14 @@ fn profile_apply_activates_prompt_through_core_store() {
     );
 
     let connection = ldgr::store::open_store(&db).expect("open core store");
+    let schema_version: i64 = connection
+        .query_row(
+            "SELECT version FROM schema_version WHERE id = 1",
+            [],
+            |row| row.get(0),
+        )
+        .expect("read core schema version");
+    assert_eq!(schema_version, 2, "adapter must initialize Core schema v2");
     let prompt = ldgr::store::active_prompt(&connection, "example-loop").expect("active prompt");
     assert_eq!(prompt.role, "example-adapter-loop");
     assert_eq!(prompt.status, "active");

@@ -104,9 +104,10 @@ fn adapter_install_writes_discoverable_bundle() {
     assert!(install.join("templates/milestones.md").is_file());
     assert!(install.join("templates/example-spec.md").is_file());
     assert!(install.join("adapter-resources.json").is_file());
-    assert!(install.join("skills/ldgr-example/SKILL.md").is_file());
-    assert!(install.join("extensions/ldgr-example.ts").is_file());
-    assert!(install.join("commands/ldgr-example.md").is_file());
+    // Adapters no longer ship skills, extensions, or harness commands.
+    assert!(!install.join("skills").exists());
+    assert!(!install.join("extensions").exists());
+    assert!(!install.join("commands").exists());
     let manifest = fs::read_to_string(install.join("adapter.toml")).expect("manifest");
     assert!(manifest.contains("slug = \"example\""));
     assert!(manifest.contains("name = \"example-manifest-summary\""));
@@ -190,12 +191,15 @@ fn adapter_install_routes_prompts_through_harness_config() {
     let adapter_root = dir.join("adapters");
     let codex_prompts = dir.join(".codex/prompts");
     fs::create_dir_all(dir.join(".ldgr")).expect("create config dir");
+    // Build the JSON rather than formatting it by hand: Windows paths contain
+    // backslashes, which are invalid unescaped inside a JSON string.
     fs::write(
         dir.join(".ldgr/config.json"),
-        format!(
-            "{{\"harness\":\"codex\",\"prompt_paths\":[\"{}\"]}}",
-            codex_prompts.display()
-        ),
+        serde_json::to_string(&serde_json::json!({
+            "harness": "codex",
+            "prompt_paths": [codex_prompts],
+        }))
+        .expect("serialize config"),
     )
     .expect("write config");
 

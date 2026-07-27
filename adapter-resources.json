@@ -3,27 +3,12 @@
   "resources": [
     {
       "kind": "prompt",
-      "harnesses": ["pi", "codex"],
+      "harnesses": [
+        "pi",
+        "codex"
+      ],
       "source": "prompts/ldgr-loop-next-work.md",
       "destination": "ldgr-example-loop.md"
-    },
-    {
-      "kind": "skill",
-      "harnesses": ["pi", "codex", "claude", "openclaw"],
-      "source": "skills/ldgr-example",
-      "destination": "ldgr-example"
-    },
-    {
-      "kind": "extension",
-      "harnesses": ["pi"],
-      "source": "extensions/ldgr-example.ts",
-      "destination": "ldgr-example.ts"
-    },
-    {
-      "kind": "command",
-      "harnesses": ["claude", "openclaw"],
-      "source": "commands/ldgr-example.md",
-      "destination": "ldgr-example.md"
     }
   ]
 }

@@ -1,3 +1,5 @@
+mod telemetry;
+
 use std::env;
 use std::ffi::OsString;
 use std::fs;
@@ -58,79 +60,90 @@ fn manifest_summary(args: &[OsString]) -> Result<(), String> {
         }
     }
 
-    let manifest = parse_manifest()?;
-    let summary = ManifestSummary::from_manifest(&manifest);
-    if json {
-        println!(
-            "{}",
-            serde_json::to_string_pretty(&summary)
-                .map_err(|error| format!("failed to render summary JSON: {error}"))?
-        );
-    } else {
-        println!("adapter={} title={}", summary.slug, summary.title);
-        println!("core_version={}", summary.core_version);
-        println!("aliases={}", summary.aliases.join(","));
-        println!("loop_prompt={}", summary.loop_prompt_path);
-        println!(
-            "default_milestone_template={}",
-            summary.default_milestone_template
-        );
-        println!("spec_artifact={}", summary.spec_artifact_path);
-        println!("readiness_policy={}", summary.readiness_policy);
-        println!("tools={}", summary.tools.len());
-        for tool in &summary.tools {
-            println!("- {} :: {}", tool.name, tool.argv.join(" "));
-        }
-        println!("commands={}", summary.commands.len());
-        for command in &summary.commands {
-            let aliases = if command.aliases.is_empty() {
-                String::new()
-            } else {
-                format!(" aliases={}", command.aliases.join(","))
-            };
+    let mut sequence = crate::telemetry::ExampleLifecycleTelemetry::begin(
+        crate::telemetry::ExampleLifecycleStep::ManifestSummary,
+    );
+    let result = (|| {
+        let manifest = parse_manifest()?;
+        let summary = ManifestSummary::from_manifest(&manifest);
+        if json {
             println!(
-                "- {}{} :: {}",
-                command.namespace,
-                aliases,
-                command.argv.join(" ")
+                "{}",
+                serde_json::to_string_pretty(&summary)
+                    .map_err(|error| format!("failed to render summary JSON: {error}"))?
             );
-            println!("  title={}", command.title);
-            println!("  description={}", command.description);
-            println!("  usage={}", command.help.usage);
-            println!("  summary={}", command.help.summary);
-            if let Some(details) = &command.help.details {
-                println!("  details={details}");
-            }
-            if !command.capabilities.is_empty() {
-                println!("  capabilities={}", command.capabilities.join(","));
-            }
-        }
-        println!("target_profiles={}", summary.target_profiles.len());
-        for profile in &summary.target_profiles {
+        } else {
+            println!("adapter={} title={}", summary.slug, summary.title);
+            println!("core_version={}", summary.core_version);
+            println!("aliases={}", summary.aliases.join(","));
+            println!("loop_prompt={}", summary.loop_prompt_path);
             println!(
-                "- {} :: {} ({}) probes={}",
-                profile.slug,
-                profile.title,
-                profile.target_type,
-                profile.probes.len()
+                "default_milestone_template={}",
+                summary.default_milestone_template
             );
-            println!("  description={}", profile.description);
-            for probe in &profile.probes {
-                println!("  - probe {} :: {}", probe.slug, probe.title);
-                println!("    description={}", probe.description);
-                if let Some(kind) = &probe.evidence_artifact_kind {
-                    println!("    evidence_artifact_kind={kind}");
+            println!("spec_artifact={}", summary.spec_artifact_path);
+            println!("readiness_policy={}", summary.readiness_policy);
+            println!(
+                "numerical_sequence_protocol={}",
+                summary.numerical_sequence_protocol
+            );
+            println!("tools={}", summary.tools.len());
+            for tool in &summary.tools {
+                println!("- {} :: {}", tool.name, tool.argv.join(" "));
+            }
+            println!("commands={}", summary.commands.len());
+            for command in &summary.commands {
+                let aliases = if command.aliases.is_empty() {
+                    String::new()
+                } else {
+                    format!(" aliases={}", command.aliases.join(","))
+                };
+                println!(
+                    "- {}{} :: {}",
+                    command.namespace,
+                    aliases,
+                    command.argv.join(" ")
+                );
+                println!("  title={}", command.title);
+                println!("  description={}", command.description);
+                println!("  usage={}", command.help.usage);
+                println!("  summary={}", command.help.summary);
+                if let Some(details) = &command.help.details {
+                    println!("  details={details}");
                 }
-                if let Some(template) = &probe.expectation_template {
-                    println!("    expectation_template={template}");
+                if !command.capabilities.is_empty() {
+                    println!("  capabilities={}", command.capabilities.join(","));
                 }
-                if let Some(hint) = &probe.validation_hint {
-                    println!("    validation_hint={hint}");
+            }
+            println!("target_profiles={}", summary.target_profiles.len());
+            for profile in &summary.target_profiles {
+                println!(
+                    "- {} :: {} ({}) probes={}",
+                    profile.slug,
+                    profile.title,
+                    profile.target_type,
+                    profile.probes.len()
+                );
+                println!("  description={}", profile.description);
+                for probe in &profile.probes {
+                    println!("  - probe {} :: {}", probe.slug, probe.title);
+                    println!("    description={}", probe.description);
+                    if let Some(kind) = &probe.evidence_artifact_kind {
+                        println!("    evidence_artifact_kind={kind}");
+                    }
+                    if let Some(template) = &probe.expectation_template {
+                        println!("    expectation_template={template}");
+                    }
+                    if let Some(hint) = &probe.validation_hint {
+                        println!("    validation_hint={hint}");
+                    }
                 }
             }
         }
-    }
-    Ok(())
+        Ok(crate::telemetry::ExampleLifecycleTerminal::CompletedPositive)
+    })();
+    finish_lifecycle_sequence(&mut sequence, &result);
+    result.map(|_| ())
 }
 
 fn profile(args: &[OsString]) -> Result<(), String> {
@@ -146,6 +159,17 @@ fn profile(args: &[OsString]) -> Result<(), String> {
     }
 }
 
+fn finish_lifecycle_sequence(
+    sequence: &mut crate::telemetry::ExampleLifecycleTelemetry,
+    result: &Result<crate::telemetry::ExampleLifecycleTerminal, String>,
+) {
+    let terminal = result
+        .as_ref()
+        .copied()
+        .unwrap_or(crate::telemetry::ExampleLifecycleTerminal::OperationalFailure);
+    sequence.finish(terminal);
+}
+
 fn profile_discover(args: &[OsString]) -> Result<(), String> {
     if args
         .iter()
@@ -158,27 +182,34 @@ fn profile_discover(args: &[OsString]) -> Result<(), String> {
         return Err(format!("unknown profile discover option `{flag}`"));
     }
 
-    let manifests = discover_adapter_manifests()?;
-    if manifests.is_empty() {
-        println!("No adapter manifests discovered.");
-        return Ok(());
-    }
-    for manifest in manifests {
-        let aliases = if manifest.aliases.is_empty() {
-            String::new()
-        } else {
-            format!(" aliases={}", manifest.aliases.join(","))
-        };
-        println!(
-            "adapter={} title={} core_version={}{} manifest={} apply=\"ldgr-example-adapter profile apply\"",
-            manifest.slug,
-            manifest.title,
-            manifest.core_version,
-            aliases,
-            manifest.manifest_path.display()
-        );
-    }
-    Ok(())
+    let mut sequence = crate::telemetry::ExampleLifecycleTelemetry::begin(
+        crate::telemetry::ExampleLifecycleStep::ProfileDiscover,
+    );
+    let result = (|| {
+        let manifests = discover_adapter_manifests()?;
+        if manifests.is_empty() {
+            println!("No adapter manifests discovered.");
+            return Ok(crate::telemetry::ExampleLifecycleTerminal::CompletedInconclusive);
+        }
+        for manifest in manifests {
+            let aliases = if manifest.aliases.is_empty() {
+                String::new()
+            } else {
+                format!(" aliases={}", manifest.aliases.join(","))
+            };
+            println!(
+                "adapter={} title={} core_version={}{} manifest={} apply=\"ldgr-example-adapter profile apply\"",
+                manifest.slug,
+                manifest.title,
+                manifest.core_version,
+                aliases,
+                manifest.manifest_path.display()
+            );
+        }
+        Ok(crate::telemetry::ExampleLifecycleTerminal::CompletedPositive)
+    })();
+    finish_lifecycle_sequence(&mut sequence, &result);
+    result.map(|_| ())
 }
 
 fn profile_apply(args: &[OsString]) -> Result<(), String> {
@@ -214,47 +245,54 @@ fn profile_apply(args: &[OsString]) -> Result<(), String> {
         }
     }
 
-    let manifest_path = install_bundle(&install_root)?;
-    init_store(&ldgr_db, &ldgr_artifact_root)
-        .map_err(|error| format!("failed to initialize LDGR store: {error:#}"))?;
-    let connection = ldgr::store::open_store(&ldgr_db)
-        .map_err(|error| format!("failed to open LDGR store: {error:#}"))?;
-    let prompt_path = install_root.join("prompts/ldgr-loop-next-work.md");
-    let source_path = prompt_path.to_string_lossy();
-    if get_prompt(&connection, PROFILE_PROMPT_SLUG)
-        .map_err(|error| format!("failed to inspect existing prompt: {error:#}"))?
-        .is_some()
-    {
-        update_prompt(
-            &connection,
-            PROFILE_PROMPT_SLUG,
-            LOOP_PROMPT,
-            Some(source_path.as_ref()),
-            Some("Loop prompt installed by the LDGR example adapter."),
-        )
-        .map_err(|error| format!("failed to update example adapter prompt: {error:#}"))?;
-    } else {
-        create_prompt(
-            &connection,
-            PROFILE_PROMPT_SLUG,
-            PROFILE_PROMPT_ROLE,
-            LOOP_PROMPT,
-            Some(source_path.as_ref()),
-            Some("Loop prompt installed by the LDGR example adapter."),
-        )
-        .map_err(|error| format!("failed to create example adapter prompt: {error:#}"))?;
-    }
-    let prompt = set_prompt_status(&connection, PROFILE_PROMPT_SLUG, "active")
-        .map_err(|error| format!("failed to activate example adapter prompt: {error:#}"))?;
-    println!(
-        "installed LDGR adapter `example`: {}",
-        manifest_path.display()
+    let mut sequence = crate::telemetry::ExampleLifecycleTelemetry::begin(
+        crate::telemetry::ExampleLifecycleStep::ProfileApply,
     );
-    println!(
-        "applied LDGR example adapter profile prompt={} version={} status={}",
-        prompt.slug, prompt.current_version, prompt.status
-    );
-    Ok(())
+    let result = (|| {
+        let manifest_path = install_bundle(&install_root)?;
+        init_store(&ldgr_db, &ldgr_artifact_root)
+            .map_err(|error| format!("failed to initialize LDGR store: {error:#}"))?;
+        let connection = ldgr::store::open_store(&ldgr_db)
+            .map_err(|error| format!("failed to open LDGR store: {error:#}"))?;
+        let prompt_path = install_root.join("prompts/ldgr-loop-next-work.md");
+        let source_path = prompt_path.to_string_lossy();
+        if get_prompt(&connection, PROFILE_PROMPT_SLUG)
+            .map_err(|error| format!("failed to inspect existing prompt: {error:#}"))?
+            .is_some()
+        {
+            update_prompt(
+                &connection,
+                PROFILE_PROMPT_SLUG,
+                LOOP_PROMPT,
+                Some(source_path.as_ref()),
+                Some("Loop prompt installed by the LDGR example adapter."),
+            )
+            .map_err(|error| format!("failed to update example adapter prompt: {error:#}"))?;
+        } else {
+            create_prompt(
+                &connection,
+                PROFILE_PROMPT_SLUG,
+                PROFILE_PROMPT_ROLE,
+                LOOP_PROMPT,
+                Some(source_path.as_ref()),
+                Some("Loop prompt installed by the LDGR example adapter."),
+            )
+            .map_err(|error| format!("failed to create example adapter prompt: {error:#}"))?;
+        }
+        let prompt = set_prompt_status(&connection, PROFILE_PROMPT_SLUG, "active")
+            .map_err(|error| format!("failed to activate example adapter prompt: {error:#}"))?;
+        println!(
+            "installed LDGR adapter `example`: {}",
+            manifest_path.display()
+        );
+        println!(
+            "applied LDGR example adapter profile prompt={} version={} status={}",
+            prompt.slug, prompt.current_version, prompt.status
+        );
+        Ok(crate::telemetry::ExampleLifecycleTerminal::CompletedPositive)
+    })();
+    finish_lifecycle_sequence(&mut sequence, &result);
+    result.map(|_| ())
 }
 
 fn adapter_install(args: &[OsString]) -> Result<(), String> {
@@ -293,18 +331,25 @@ fn adapter_install(args: &[OsString]) -> Result<(), String> {
         }
     }
 
-    let manifest_path = install_bundle(&install_root)?;
-    install_adapter_prompt_files(&install_root)?;
-    if print_path {
-        println!("{}", manifest_path.display());
-    } else {
-        println!(
-            "installed LDGR adapter `example`: {}",
-            manifest_path.display()
-        );
-        println!("next: `ldgr-example-adapter profile discover` then `ldgr-example-adapter profile apply example`");
-    }
-    Ok(())
+    let mut sequence = crate::telemetry::ExampleLifecycleTelemetry::begin(
+        crate::telemetry::ExampleLifecycleStep::AdapterInstall,
+    );
+    let result = (|| {
+        let manifest_path = install_bundle(&install_root)?;
+        install_adapter_prompt_files(&install_root)?;
+        if print_path {
+            println!("{}", manifest_path.display());
+        } else {
+            println!(
+                "installed LDGR adapter `example`: {}",
+                manifest_path.display()
+            );
+            println!("next: `ldgr-example-adapter profile discover` then `ldgr-example-adapter profile apply example`");
+        }
+        Ok(crate::telemetry::ExampleLifecycleTerminal::CompletedPositive)
+    })();
+    finish_lifecycle_sequence(&mut sequence, &result);
+    result.map(|_| ())
 }
 
 fn install_bundle(install_root: &Path) -> Result<PathBuf, String> {
@@ -549,6 +594,7 @@ struct ManifestSummary {
     default_milestone_template: String,
     spec_artifact_path: String,
     readiness_policy: String,
+    numerical_sequence_protocol: String,
     tools: Vec<ManifestTool>,
     commands: Vec<ManifestCommandNamespace>,
     target_profiles: Vec<TargetProfileSummary>,
@@ -584,6 +630,9 @@ impl ManifestSummary {
             default_milestone_template: manifest.profile.default_milestone_template.clone(),
             spec_artifact_path: manifest.profile.spec_artifact_path.clone(),
             readiness_policy: manifest.profile.readiness_policy.clone(),
+            numerical_sequence_protocol: crate::telemetry::EXAMPLE_ADAPTER_LIFECYCLE_V1
+                .endpoint()
+                .to_string(),
             tools: manifest.tools.clone(),
             commands: manifest.commands.clone(),
             target_profiles: manifest

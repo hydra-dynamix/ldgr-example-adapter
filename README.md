@@ -43,6 +43,12 @@ ldgr-example-adapter profile apply [--install-root DIR] [--ldgr-db PATH] [--ldgr
 
 The adapter-owned command surface is intentionally separate from core `ldgr` commands.
 
+## Numerical sequence protocol
+
+The reference adapter demonstrates opt-in numerical sequence collection through LDGR Core only. It declares `/sequences/example-adapter-lifecycle/v1` with command states `8` manifest-summary, `9` adapter-install, `10` profile-discover, and `11` profile-apply. Normalized terminal codes keep the Core meanings: `3` completed-positive, `4` completed-negative, `5` completed-inconclusive, `6` operational-failure, and `7` cancelled.
+
+The adapter uses `ldgr::telemetry::buffer::LocalSequenceBuffer`; it never reads consent, opens a telemetry connection, serializes an upload, or adds labels. Core persists only a bare integer array such as `[0,1,8,3]`; no adapter names discovered, install roots, prompt paths, database paths, manifest paths, arguments, errors, or user content are encoded.
+
 ## Repository layout
 
 | Path | Purpose |

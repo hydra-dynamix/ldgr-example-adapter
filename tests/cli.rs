@@ -4,6 +4,9 @@ use std::path::PathBuf;
 use std::process::{Command, Output};
 
 use ldgr::adapter_manifest::{parse_adapter_manifest, AdapterManifest};
+use ldgr::telemetry::{
+    save_telemetry_consent, TelemetryConsent, TelemetryConsentDecision, TELEMETRY_PENDING_DIRECTORY,
+};
 
 fn binary() -> &'static str {
     env!("CARGO_BIN_EXE_ldgr-example-adapter")
@@ -22,14 +25,34 @@ fn fixture_dir(name: &str) -> PathBuf {
 
 fn run(args: &[&str]) -> Output {
     let mut command = Command::new(binary());
-    command.args(args).env_remove("LDGR_HOME");
+    command
+        .args(args)
+        .env_remove("LDGR_HOME")
+        .env("LDGR_TELEMETRY", "off");
     strip_entitlement_context(&mut command);
     command.output().expect("run ldgr-example-adapter")
 }
 
 fn run_with_env(args: &[&str], envs: &[(&str, &Path)]) -> Output {
     let mut command = Command::new(binary());
-    command.args(args).env_remove("LDGR_HOME");
+    command
+        .args(args)
+        .env_remove("LDGR_HOME")
+        .env("LDGR_TELEMETRY", "off");
+    for (key, value) in envs {
+        command.env(key, value);
+    }
+    strip_entitlement_context(&mut command);
+    command.output().expect("run ldgr-example-adapter")
+}
+
+fn run_with_sequence_collection(args: &[&str], envs: &[(&str, &Path)], cwd: &Path) -> Output {
+    let mut command = Command::new(binary());
+    command
+        .args(args)
+        .current_dir(cwd)
+        .env_remove("LDGR_HOME")
+        .env_remove("LDGR_TELEMETRY");
     for (key, value) in envs {
         command.env(key, value);
     }
@@ -58,6 +81,29 @@ fn stdout(output: &Output) -> String {
     String::from_utf8_lossy(&output.stdout).to_string()
 }
 
+fn enable_sequence_collection(ldgr_home: &Path) {
+    save_telemetry_consent(
+        ldgr_home,
+        &TelemetryConsent::current(TelemetryConsentDecision::Enabled),
+    )
+    .expect("enable sequence collection");
+}
+
+fn pending_payloads(ldgr_home: &Path) -> Vec<Vec<u8>> {
+    let route = ldgr_home
+        .join(TELEMETRY_PENDING_DIRECTORY)
+        .join("example-adapter-lifecycle/v1");
+    if !route.exists() {
+        return Vec::new();
+    }
+    let mut payloads = fs::read_dir(route)
+        .expect("read pending telemetry route")
+        .map(|entry| fs::read(entry.expect("pending entry").path()).expect("read payload"))
+        .collect::<Vec<_>>();
+    payloads.sort();
+    payloads
+}
+
 #[test]
 fn help_lists_adapter_command_extension() {
     let output = run(&["--help"]);
@@ -81,6 +127,52 @@ fn manifest_summary_reports_real_bundled_manifest() {
     assert!(text.contains("usage=ldgr example <command> [options]"));
     assert!(text.contains("target_profiles=1"));
     assert!(text.contains("example-adapter-lifecycle"));
+    assert!(text.contains("numerical_sequence_protocol=/sequences/example-adapter-lifecycle/v1"));
+}
+
+#[test]
+fn enabled_sequence_collection_buffers_bare_example_lifecycle_arrays() {
+    let dir = fixture_dir("telemetry");
+    let ldgr_home = dir.join(".ldgr");
+    enable_sequence_collection(&ldgr_home);
+
+    let output = run_with_sequence_collection(
+        &["manifest-summary"],
+        &[("LDGR_HOME", &ldgr_home), ("HOME", &dir)],
+        &dir,
+    );
+
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let text = stdout(&output);
+    assert!(text.contains("adapter=example"), "{text}");
+    let payloads = pending_payloads(&ldgr_home);
+    assert_eq!(payloads, vec![b"[0,1,8,3]".to_vec()]);
+    assert_eq!(
+        serde_json::from_slice::<serde_json::Value>(&payloads[0]).expect("parse payload"),
+        serde_json::json!([0, 1, 8, 3])
+    );
+    let payload_text = std::str::from_utf8(&payloads[0]).expect("utf-8 payload");
+    for prohibited in [
+        "adapter=example",
+        "LDGR Example adapter",
+        "example-manifest-summary",
+        "manifest-summary",
+        "adapter.toml",
+        "prompts",
+        "templates",
+        "path",
+        "workspace",
+        "http://",
+    ] {
+        assert!(
+            !payload_text.contains(prohibited),
+            "payload leaked `{prohibited}`"
+        );
+    }
 }
 
 #[test]

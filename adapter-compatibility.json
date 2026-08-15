@@ -1,0 +1,1 @@
+{"adapter":"example","compatibility":{"adapter_protocol_epoch":1,"central_components":[],"minimum_core_schema":5,"required_core_capabilities":["prompt.v1","telemetry.v1"]},"format":"ldgr.adapter-compatibility.v2","local_stores":[]}

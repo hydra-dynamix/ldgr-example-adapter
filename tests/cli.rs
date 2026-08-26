@@ -191,6 +191,8 @@ fn adapter_install_writes_discoverable_bundle() {
     );
     assert!(output.status.success());
     assert!(install.join("adapter.toml").is_file());
+    assert!(install.join("adapter-compatibility.json").is_file());
+    assert!(!install.join("adapter-database-contract.json").exists());
     assert!(install.join("prompts/ldgr-loop-next-work.md").is_file());
     assert!(dir.join(".ldgr/prompts/ldgr-loop-next-work.md").is_file());
     assert!(install.join("templates/milestones.md").is_file());

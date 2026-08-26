@@ -97,6 +97,7 @@ jobs:
           cp README.md "dist/${RELEASE_NAME}-${version}/"
           if [[ -f LICENSE ]]; then cp LICENSE "dist/${RELEASE_NAME}-${version}/"; fi
           if [[ -f adapter.toml ]]; then cp adapter.toml "dist/${RELEASE_NAME}-${version}/adapter.toml"; fi
+          cp adapter-compatibility.json "dist/${RELEASE_NAME}-${version}/adapter-compatibility.json"
           cp adapter-resources.json "dist/${RELEASE_NAME}-${version}/adapter-resources.json"
           for dir in prompts templates extensions skills scripts docs; do
             if [[ -d "$dir" ]]; then mkdir -p "dist/${RELEASE_NAME}-${version}/${dir}"; cp -R "$dir/." "dist/${RELEASE_NAME}-${version}/${dir}/"; fi
@@ -120,31 +121,17 @@ jobs:
             shasum -a 256 "$archive" > "${archive}.sha256"
             digest="$(shasum -a 256 "$archive" | awk '{print $1}')"
           fi
-          cat > "dist/${RELEASE_NAME}-${version}-${platform}.index-entry.json" <<JSON
-          {
-            "domain":"example",
-            "primary_namespace":"example",
-            "title":"LDGR Example adapter",
-            "aliases":["reference"],
-            "classification":"open_source",
-            "source_url":"https://github.com/${GITHUB_REPOSITORY}",
-            "releases":[{
-              "version":"${version}",
-              "channel":"${{ github.event_name == 'workflow_dispatch' && inputs.prerelease == false && 'stable' || 'prerelease' }}",
-              "core_compatibility":">=0.1.0, <0.2.0",
-              "platforms":[{
-                "platform":"${platform}",
-                "asset_url":"https://github.com/${RELEASE_REPO}/releases/download/example-v${version}/${RELEASE_NAME}-${version}-${platform}.tar.gz",
-                "archive_root":"${RELEASE_NAME}-${version}",
-                "binary":"${binary_file}",
-                "sha256":"${digest}",
-                "signature_url":"https://github.com/${RELEASE_REPO}/releases/download/example-v${version}/${RELEASE_NAME}-${version}-${platform}.tar.gz.sig",
-                "signing_key_id":"${LDGR_RELEASE_SIGNING_KEY_ID}",
-                "resource_manifest":"adapter-resources.json"
-              }]
-            }]
-          }
-          JSON
+          python3 - "dist/${RELEASE_NAME}-${version}-${platform}.index-entry.json" "$version" "$platform" "$binary_file" "$digest" <<'PY'
+          import hashlib,json,pathlib,sys,os
+          output,version,platform,binary,digest=sys.argv[1:]
+          sidecar_path=pathlib.Path("adapter-compatibility.json"); sidecar=json.loads(sidecar_path.read_text())
+          compatibility=sidecar["compatibility"]
+          fingerprint="sha256:"+hashlib.sha256(json.dumps(compatibility,sort_keys=True,separators=(",", ":")).encode()).hexdigest()
+          base=f"https://github.com/{os.environ['RELEASE_REPO']}/releases/download/example-v{version}/ldgr-example-adapter-{version}-{platform}.tar.gz"
+          product={"domain":"example","primary_namespace":"example","title":"LDGR Example adapter","aliases":["reference"],"classification":"open_source","source_url":f"https://github.com/{os.environ['GITHUB_REPOSITORY']}","releases":[{"version":version,"channel":"${{ github.event_name == 'workflow_dispatch' && inputs.prerelease == false && 'stable' || 'prerelease' }}","compatibility":compatibility,"compatibility_sha256":fingerprint,"platforms":[{"platform":platform,"asset_url":base,"archive_root":f"ldgr-example-adapter-{version}","binary":binary,"sha256":digest,"signature_url":base+".sig","signing_key_id":os.environ["LDGR_RELEASE_SIGNING_KEY_ID"],"resource_manifest":"adapter-resources.json"}]}]}
+          fragment={"format":"ldgr.adapter-release-fragment.v2","product":product,"sidecar_sha256":"sha256:"+hashlib.sha256(sidecar_path.read_bytes()).hexdigest()}
+          pathlib.Path(output).write_text(json.dumps(fragment,sort_keys=True,indent=2)+"\n")
+          PY
 
       - name: Sign archive
         shell: bash
@@ -185,7 +172,7 @@ jobs:
           fi
           if [[ -n "${LDGR_RELEASES_TOKEN:-}" ]]; then export GH_TOKEN="$LDGR_RELEASES_TOKEN"; fi
           if ! gh release view "$tag" --repo "$RELEASE_REPO" >/dev/null 2>&1; then
-            gh release create "$tag" --repo "$RELEASE_REPO" --title "$title" --notes "${RELEASE_NAME} ${version} open adapter release from ${GITHUB_SHA}." $prerelease_flag
+            gh release create "$tag" --repo "$RELEASE_REPO" --draft --title "$title" --notes "${RELEASE_NAME} ${version} compatibility-v2 candidate from ${GITHUB_SHA}; publish only through the ldgr-releases catalog gate." $prerelease_flag || gh release view "$tag" --repo "$RELEASE_REPO" >/dev/null
           fi
           gh release upload "$tag" --repo "$RELEASE_REPO" \
             dist/${RELEASE_NAME}-${version}-*.tar.gz \
